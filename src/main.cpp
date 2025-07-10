@@ -1,13 +1,17 @@
-#include <Arduino.h>
-
 // Project: Peppering (Plant Monitor)
 // Board: Arduino UNO R4 WiFi
 // Framework: Arduino (PlatformIO)
+#define DEBUG_NOFIF
 
+
+#include <Arduino.h>
+#include <Arduino_LED_Matrix.h>
+
+#ifndef DEBUG_NOWIFI
 #include <WiFiS3.h>
+#endif
 
 #include "uno_matrix.h"
-
 
 
 // WiFi credentials
@@ -15,8 +19,9 @@ const char* ssid = "YOUR_WIFI_SSID";
 const char* password = "YOUR_WIFI_PASSWORD";
 
 
-
+#ifndef DEBUG_NOWIFI
 WiFiServer server(80);
+#endif
 
 const int sensor1Pin = A0;
 const int sensor2Pin = A1;
@@ -24,13 +29,17 @@ const int sensor2Pin = A1;
 const int MAX_READINGS = 10;
 int iAlert1 = 0;
 int iAlert2 = 0;
-
+ArduinoLEDMatrix matrix; 
 int readings1[MAX_READINGS] = {0};
 int readings2[MAX_READINGS] = {0};
 unsigned long timestamps[MAX_READINGS] = {0};
 
 unsigned long lastSampleTime = 0;
+#ifndef DEBUG_NOWIFI 
 const unsigned long sampleInterval = 3600000; // 1 hour in milliseconds
+#else
+const unsigned long sampleInterval = 10000; // 10 sec. in milliseconds
+#endif
 
 String formatTimestamp(unsigned long ms) {
   unsigned long seconds = ms / 1000;
@@ -67,7 +76,6 @@ void shiftReadingsUp() {
     timestamps[i] = timestamps[i + 1];
   }
 }
-
 
 /*void ShowAlert(int iAlert) {
   static const uint32_t SMILEY[8] = {
@@ -165,17 +173,25 @@ void setup() {
   pinMode(sensor1Pin, INPUT);
   pinMode(sensor2Pin, INPUT);
 
-  while (WiFi.begin(ssid, password) != WL_CONNECTED) {
+  // Try to connect - 10 times 
+  #ifndef DEBUG_NOWIFI
+  int iCount = 0;
+   while (WiFi.begin(ssid, password) != WL_CONNECTED && iCount < 10 ) {
     Serial.println("Connecting to WiFi...");
-    delay(2000);
+    iCount++;
+    delay(3000);
   }
+  if (WiFi.status() == WL_CONNECTED) {
+    Serial.println("Connected to WiFi");
+    Serial.print("IP Address: ");
+    Serial.println(WiFi.localIP());
+    server.begin();
+  }
+  else {
+    Serial.println("Cannot connect to WiFi - trying without it");
+  }
+#endif
 
-  Serial.println("Connected to WiFi");
-  Serial.print("IP Address: ");
-  Serial.println(WiFi.localIP());
-
-  server.begin();
-  
 }
 
 void loop() {
@@ -200,22 +216,25 @@ void loop() {
     Serial.print(" | Sensor2: "); Serial.println(readings2[MAX_READINGS - 1]);
   }
 
-  WiFiClient client = server.available();
-  if (client) {
-    String html = "<!DOCTYPE html><html><head><meta charset='utf-8'><title>Peppering Monitor</title></head><body>";
-    html += "<h2>Soil Moisture Readings (last 10 hours)</h2>";
-    html += formatDualReadings(readings1, readings2, timestamps);
-    html += "</body></html>";
+  #ifndef DEBUG_NOWIFI
+  if (WiFi.status() == WL_CONNECTED) {
+    WiFiClient client = server.available();
+    if (client) {
+      String html = "<!DOCTYPE html><html><head><meta charset='utf-8'><title>Peppering Monitor</title></head><body>";
+      html += "<h2>Soil Moisture Readings (last 10 hours)</h2>";
+      html += formatDualReadings(readings1, readings2, timestamps);
+      html += "</body></html>";
 
-    client.println("HTTP/1.1 200 OK");
-    client.println("Content-Type: text/html");
-    client.println("Connection: close");
-    client.println();
-    client.println(html);
+      client.println("HTTP/1.1 200 OK");
+      client.println("Content-Type: text/html");
+      client.println("Connection: close");
+      client.println();
+      client.println(html);
 
-    delay(10);
-    client.stop();
+      delay(10);
+      client.stop();
+    }
   }
-
+  #endif not DEBUG_NOWIFI
   delay(100); // brief pause to avoid tight loop
 }
