@@ -1,7 +1,7 @@
 // Project: Peppering (Plant Monitor)
 // Board: Arduino UNO R4 WiFi
 // Framework: Arduino (PlatformIO)
-#define DEBUG_NOFIF
+#define DEBUG_NOWIF
 
 
 #include <Arduino.h>
@@ -23,8 +23,15 @@ const char* password = "YOUR_WIFI_PASSWORD";
 WiFiServer server(80);
 #endif
 
-const int sensor1Pin = A0;
-const int sensor2Pin = A1;
+// Sensor 1 configuration
+const int sensor1PwrPin = 7;
+const int sensor1AnlPin = A0;
+const int sensor1DgtPin = 2;
+
+// Sensor 2 configuration
+const int sensor2PwrPin = 8;
+const int sensor2AnlPin = A1;
+const int sensor2DgtPin = 3;
 
 const int MAX_READINGS = 10;
 int iAlert1 = 0;
@@ -33,6 +40,8 @@ ArduinoLEDMatrix matrix;
 int readings1[MAX_READINGS] = {0};
 int readings2[MAX_READINGS] = {0};
 unsigned long timestamps[MAX_READINGS] = {0};
+int dgValue1;
+int dgValue2;
 
 unsigned long lastSampleTime = 0;
 #ifndef DEBUG_NOWIFI 
@@ -52,19 +61,24 @@ String formatTimestamp(unsigned long ms) {
   return String(buffer);
 }
 
-String formatReadings(int arr[], unsigned long tsArr[]) {
-  String result = "<table border='1'><tr><th>Time</th><th>Value</th></tr>";
-  for (int i = 0; i < MAX_READINGS; i++) {
-    if (tsArr[i] == 0) continue; // skip uninitialized rows
-    result += "<tr><td>" + formatTimestamp(tsArr[i]) + "</td><td>" + String(arr[i]) + "</td></tr>";
-  }
-  result += "</table>";
+String formatCell(int iValue) {
+  String result =  "<td valign='top'>" + String(iValue) + "</td></tr>";
   return result;
 }
 
 String formatDualReadings(int arr1[], int arr2[], unsigned long tsArr[]) {
   String result = "<table border='1'><tr><th>Sensor 1</th><th>Sensor 2</th></tr>";
-  result += "<tr><td valign='top'>" + formatReadings(arr1, tsArr) + "</td><td valign='top'>" + formatReadings(arr2, tsArr) + "</td></tr>";
+  for (int i = 0; i < MAX_READINGS; i++) {
+    result += "<tr><td valign='top'>"  + formatTimestamp(tsArr[i]) + "</td>" ;
+    if (tsArr[i] > 0 ) {
+      result += formatCell(arr1[i]) + formatCell(arr2[i]) + "</td></tr>";
+    }
+    else {
+      result += "<td></td><td></td></tr>";        // no values yet
+    }
+  }
+  // output current digital values (Alarm?)
+  result += "<tr><td valign='top'>Alarm 1 = " + String(dgValue1) + "</td><td valign='top'>Alarm 2 = " + String(dgValue2) + "</td></tr>";
   result += "</table>";
   return result;
 }
@@ -77,6 +91,18 @@ void shiftReadingsUp() {
   }
 }
 
+void printMoistSensor(unsigned long timestamp, int anValue, int dgValue) {
+  char buffer[80];
+  String timeStr = formatTimestamp(timestamp);
+
+  snprintf(buffer, sizeof(buffer),
+           "[%s] Moisture: analog=%d, digital=%s",
+           timeStr.c_str(),
+           anValue,
+           (dgValue == LOW ? "DRY" : "WET"));
+
+  Serial.println(buffer);
+}
 /*void ShowAlert(int iAlert) {
   static const uint32_t SMILEY[8] = {
     B00111100,
@@ -165,13 +191,45 @@ const uint32_t EXCLAMATION_BOTH[8] = {
 }
 */
 
+int initMoistSensor(int pwrPin, int anlPin, int dgPin) {
+  pinMode(pwrPin, OUTPUT);
+  pinMode(anlPin, INPUT);
+  pinMode(dgPin, INPUT);
+
+  digitalWrite(pwrPin, HIGH);
+  delay(200);  // allow sensor to stabilize
+
+  int analogVal = analogRead(anlPin);
+  int digitalVal = digitalRead(dgPin);
+
+  bool isAnalogOK = (analogVal > 10 && analogVal < 1013);
+
+  char buffer[100];
+
+  if (isAnalogOK) {
+    snprintf(buffer, sizeof(buffer), "✅ Sensor on A%d: analog=%d, digital=%d",
+             anlPin - A0, analogVal, digitalVal);
+    Serial.println(buffer);
+    return 1;
+  } else {
+    snprintf(buffer, sizeof(buffer),
+             "⚠️ Sensor on A%d failed to initialize. Analog=%d",
+             anlPin - A0, analogVal);
+    Serial.println(buffer);
+    return 0;
+  }
+}
+
+
 void setup() {
   Serial.begin(9600);           // connect to terminal
 
-  matrix.begin();
+  matrix.begin();               // init matrix on the board
 
-  pinMode(sensor1Pin, INPUT);
-  pinMode(sensor2Pin, INPUT);
+  // init both misture sensors
+  int ok1 = initMoistSensor(sensor1PwrPin, sensor1AnlPin, sensor1DgtPin);
+  int ok2 = initMoistSensor(sensor2PwrPin, sensor2AnlPin, sensor2DgtPin);
+
 
   // Try to connect - 10 times 
   #ifndef DEBUG_NOWIFI
@@ -194,30 +252,8 @@ void setup() {
 
 }
 
-void loop() {
-  unsigned long now = millis();
-  int iAlert;
-
-  if (iAlert  != iAlert1 + iAlert2 ) {      // output matrix
-    iAlert = iAlert1 + iAlert2;
-    ShowIconById(static_cast<IconId>(iAlert));
-  }
-  
-  if (now - lastSampleTime >= sampleInterval || lastSampleTime == 0) {
-    lastSampleTime = now;
-
-    shiftReadingsUp();
-    readings1[MAX_READINGS - 1] = analogRead(sensor1Pin);
-    readings2[MAX_READINGS - 1] = analogRead(sensor2Pin);
-    timestamps[MAX_READINGS - 1] = now;
-
-    // Debug outputt to the terminal
-    Serial.print("Sensor1: "); Serial.print(readings1[MAX_READINGS - 1]);
-    Serial.print(" | Sensor2: "); Serial.println(readings2[MAX_READINGS - 1]);
-  }
-
-  #ifndef DEBUG_NOWIFI
-  if (WiFi.status() == WL_CONNECTED) {
+// ouput page
+void webOutput() {
     WiFiClient client = server.available();
     if (client) {
       String html = "<!DOCTYPE html><html><head><meta charset='utf-8'><title>Peppering Monitor</title></head><body>";
@@ -234,7 +270,50 @@ void loop() {
       delay(10);
       client.stop();
     }
+ 
+}
+
+void loop() {
+  unsigned long now = millis();
+  int iAlert;
+
+  if (iAlert  != iAlert1 + iAlert2 ) {      // output matrix
+    iAlert = iAlert1 + iAlert2;
+    ShowIconById(static_cast<IconId>(iAlert));
   }
-  #endif not DEBUG_NOWIFI
+ 
+  if (now - lastSampleTime >= sampleInterval || lastSampleTime == 0) {
+    lastSampleTime = now;
+
+    // powering sensors up
+    digitalWrite(sensor1PwrPin, HIGH);
+    digitalWrite(sensor2PwrPin, HIGH);
+    delay(200);       // allow sensors to stabilize before reading
+ 
+    shiftReadingsUp();
+    readings1[MAX_READINGS - 1] = analogRead(sensor1AnlPin);
+    readings2[MAX_READINGS - 1] = analogRead(sensor2AnlPin);
+    timestamps[MAX_READINGS - 1] = now;
+    dgValue1 = digitalRead(sensor1DgtPin);
+    dgValue2 = digitalRead(sensor2DgtPin);
+
+    // powering sensors off
+    digitalWrite(sensor1PwrPin, LOW);
+    digitalWrite(sensor2PwrPin, LOW);
+ 
+    // Debug outputt to the terminal
+    Serial.print("Sensor1: "); Serial.print(readings1[MAX_READINGS - 1]);
+    Serial.print(" | Sensor2: "); Serial.println(readings2[MAX_READINGS - 1]);
+  }
+
+  if (WiFi.status() == WL_CONNECTED) {
+    webOutput();
+  }
+  else {      // No WiFi
+    printMoistSensor(timestamps[MAX_READINGS - 1], readings1[MAX_READINGS - 1], dgValue1);
+    printMoistSensor(timestamps[MAX_READINGS - 1], readings2[MAX_READINGS - 1], dgValue2);
+
+  }
+  
   delay(100); // brief pause to avoid tight loop
 }
