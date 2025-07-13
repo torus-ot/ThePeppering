@@ -11,12 +11,13 @@
 #include <WiFiS3.h>
 #endif
 
+#include "secret_wifi.h"
 #include "uno_matrix.h"
 
 
 // WiFi credentials
-const char* ssid = "YOUR_WIFI_SSID";
-const char* password = "YOUR_WIFI_PASSWORD";
+const char* ssid = SECRET_WIFI;
+const char* password = SECRET_PSWD;
 
 
 #ifndef DEBUG_NOWIFI

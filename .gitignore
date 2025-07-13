@@ -6,3 +6,4 @@
 test/README
 lib/README
 include/README
+include/secret_wifi.h
