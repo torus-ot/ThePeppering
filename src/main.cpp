@@ -19,7 +19,7 @@
 const char* ssid = SECRET_WIFI;
 const char* password = SECRET_PSWD;
 
-#define MAXLINE 150
+#define MAXLINE 200
 
 #ifndef DEBUG_NOWIFI
 WiFiServer server(80);
@@ -95,7 +95,7 @@ void OuputTable(int arr1[], int arr2[], unsigned long tsArr[])
     sAlert2 = (dgValue2 == 1) ? sOK : sBad;
     snprintf(sLine, iMaxLine, "<tr align='right'><th>Alarm</th><td valign='top'>%s</td><td valign='top'>%s</td></tr>", sAlert1,sAlert2);
     client.println(sLine); 
-    client.println("</table></p>\r\n"); 
+    client.println("</table>\r\n</p>\r\n"); 
   }
 
 }
@@ -222,7 +222,13 @@ void webOutput() {
     client.println("<!DOCTYPE html><html><head><meta charset='utf-8'><title>Peppering Monitor</title></head><body>");
     client.println("<h2>Soil Moisture Readings</h2>");
     
-    client.println("<form action='/' method='GET'><p> New Interval (ms): <input type='number' name='interval' value='3600000'><br> <input type='submit' value='Set'></p></form>");
+    // Form for the form HTML part
+    snprintf(sRequest, sizeof(sRequest),
+        "<form action='/' method='GET'><p> New Interval (ms): "
+        "<input type='number' name='interval' value='%lu'><br> "
+        "<input type='submit' value='Set'></p></form>",
+        sampleInterval);
+    client.println(sRequest);
 
     OuputTable(readings1, readings2, timestamps);
 
