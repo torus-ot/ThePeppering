@@ -19,9 +19,11 @@
 const char* ssid = SECRET_WIFI;
 const char* password = SECRET_PSWD;
 
+#define MAXLINE 150
 
 #ifndef DEBUG_NOWIFI
 WiFiServer server(80);
+WiFiClient client;
 #endif
 
 // Sensor 1 configuration
@@ -35,8 +37,8 @@ const int sensor2AnlPin = A1;
 const int sensor2DgtPin = 3;
 
 const int MAX_READINGS = 10;
-int iAlert1 = 0;
-int iAlert2 = 0;
+
+
 ArduinoLEDMatrix matrix; 
 int readings1[MAX_READINGS] = {0};
 int readings2[MAX_READINGS] = {0};
@@ -46,43 +48,58 @@ int dgValue2;
 
 unsigned long lastSampleTime = 0;
 #ifndef DEBUG_NOWIFI 
-const unsigned long sampleInterval = 3600000; // 1 hour in milliseconds
+unsigned long sampleInterval = 60000;    // 5min //3600000; // 1 hour in milliseconds
 #else
 const unsigned long sampleInterval = 10000; // 10 sec. in milliseconds
 #endif
 
-String formatTimestamp(unsigned long ms) {
+
+char* TimestampOut(char* sTime, int iMaxL, unsigned long ms) {
   unsigned long seconds = ms / 1000;
   unsigned long hours = (seconds / 3600) % 24;
   unsigned long minutes = (seconds / 60) % 60;
   unsigned long secs = seconds % 60;
 
-  char buffer[16];
-  snprintf(buffer, sizeof(buffer), "%02lu:%02lu:%02lu", hours, minutes, secs);
-  return String(buffer);
+  snprintf(sTime, iMaxL, "%02lu:%02lu:%02lu", hours, minutes, secs);
+  return sTime;
 }
 
-String formatCell(int iValue) {
-  String result =  "<td valign='top'>" + String(iValue) + "</td></tr>";
-  return result;
+
+char* formatRaw(char* buf, size_t maxLen, int iVal1, int iVal2, unsigned long ms) {
+  char sTime[20];
+  TimestampOut(sTime, sizeof(sTime), ms);
+  snprintf(buf, maxLen, "<tr align='right'><td>%s</td><td>%d</td><td>%d</td></tr>", sTime, iVal1, iVal2);
+  return buf;
 }
 
-String formatDualReadings(int arr1[], int arr2[], unsigned long tsArr[]) {
-  String result = "<table border='1'><tr><th>Sensor 1</th><th>Sensor 2</th></tr>";
-  for (int i = 0; i < MAX_READINGS; i++) {
-    result += "<tr><td valign='top'>"  + formatTimestamp(tsArr[i]) + "</td>" ;
-    if (tsArr[i] > 0 ) {
-      result += formatCell(arr1[i]) + formatCell(arr2[i]) + "</td></tr>";
+
+void OuputTable(int arr1[], int arr2[], unsigned long tsArr[]) 
+{
+  char* sAlert1;
+  char* sAlert2;
+  char* sOK =  "&#128994;";     // "OK";    //
+  char* sBad = "&#10060;";      // "!!!";   // 
+  char sLine[MAXLINE];
+  int iMaxLine = MAXLINE;
+
+  // WiFiClient client = server.available();   // called in the WebOutput()
+  if (client) {
+    client.println("<p><table border='1' align='left'>");                                    // table
+    client.println("<tr><th>Time elapsed</th><th>Sensor 1</th><th>Sensor 2</th></tr>");   // header
+    for (int i = 0; i < MAX_READINGS; i++) {                                              // raws
+      formatRaw(sLine, iMaxLine, arr1[i], arr2[i], tsArr[i]);
+      client.println(sLine);
     }
-    else {
-      result += "<td></td><td></td></tr>";        // no values yet
-    }
+    // bottom raw - digital
+    sAlert1 = (dgValue1 == 1) ? sOK : sBad;
+    sAlert2 = (dgValue2 == 1) ? sOK : sBad;
+    snprintf(sLine, iMaxLine, "<tr align='right'><th>Alarm</th><td valign='top'>%s</td><td valign='top'>%s</td></tr>", sAlert1,sAlert2);
+    client.println(sLine); 
+    client.println("</table></p>\r\n"); 
   }
-  // output current digital values (Alarm?)
-  result += "<tr><td valign='top'>Alarm 1 = " + String(dgValue1) + "</td><td valign='top'>Alarm 2 = " + String(dgValue2) + "</td></tr>";
-  result += "</table>";
-  return result;
+
 }
+
 
 void shiftReadingsUp() {
   for (int i = 0; i < MAX_READINGS - 1; i++) {
@@ -92,105 +109,21 @@ void shiftReadingsUp() {
   }
 }
 
+
 void printMoistSensor(unsigned long timestamp, int anValue, int dgValue) {
   char buffer[80];
-  String timeStr = formatTimestamp(timestamp);
+  char sTime[20];
+  TimestampOut(sTime, sizeof(sTime), timestamp);
 
   snprintf(buffer, sizeof(buffer),
            "[%s] Moisture: analog=%d, digital=%s",
-           timeStr.c_str(),
+           sTime,
            anValue,
            (dgValue == LOW ? "DRY" : "WET"));
 
   Serial.println(buffer);
 }
-/*void ShowAlert(int iAlert) {
-  static const uint32_t SMILEY[8] = {
-    B00111100,
-    B01000010,
-    B10100101,
-    B10000001,
-    B10100101,
-    B10011001,
-    B01000010,
-    B00111100
-  };
 
-  static const uint32_t EXCLAMATION[8] = {
-    B00011000,
-    B00011000,
-    B00011000,
-    B00011000,
-    B00011000,
-    B00000000,
-    B00011000,
-    B00011000
-  };
-
-// Left-side centered "!"
-const uint32_t EXCLAMATION_LEFT[8] = {
-  B00001100,
-  B00001100,
-  B00001100,
-  B00001100,
-  B00001100,
-  B00000000,
-  B00001100,
-  B00001100
-};
-
-// Right-side centered "!"
-const uint32_t EXCLAMATION_RIGHT[8] = {
-  B00110000,
-  B00110000,
-  B00110000,
-  B00110000,
-  B00110000,
-  B00000000,
-  B00110000,
-  B00110000
-};
-
-// Both sides "!"
-const uint32_t EXCLAMATION_BOTH[8] = {
-  B00111100,
-  B00111100,
-  B00111100,
-  B00111100,
-  B00111100,
-  B00000000,
-  B00111100,
-  B00111100
-};
-
-
-  uint32_t buffer[8] = {0};
-
-  if (iAlert < 0) {
-    matrix.clear();
-    return;
-  }
-
-  if (iAlert == 0) {
-    matrix.loadFrame(SMILEY);
-    return;
-  }
-
-  if (iAlert == 1 || iAlert == 3) {
-    for (int row = 0; row < 8; row++) {
-      buffer[row] |= EXCLAMATION[row] >> 2; // left half
-    }
-  }
-
-  if (iAlert == 2 || iAlert == 3) {
-    for (int row = 0; row < 8; row++) {
-      buffer[row] |= EXCLAMATION[row] << 4; // right half
-    }
-  }
-
-  matrix.loadFrame(buffer);
-}
-*/
 
 int initMoistSensor(int pwrPin, int anlPin, int dgPin) {
   pinMode(pwrPin, OUTPUT);
@@ -221,11 +154,15 @@ int initMoistSensor(int pwrPin, int anlPin, int dgPin) {
   }
 }
 
-
 void setup() {
   Serial.begin(9600);           // connect to terminal
 
   matrix.begin();               // init matrix on the board
+
+  IPAddress local_ip(192, 168, 1, 193);    // your desired static IP
+  IPAddress gateway(192, 168, 1, 1);       // usually your router
+  IPAddress subnet(255, 255, 255, 0);      // standard home subnet
+  WiFi.config(local_ip, gateway, subnet);
 
   // init both misture sensors
   int ok1 = initMoistSensor(sensor1PwrPin, sensor1AnlPin, sensor1DgtPin);
@@ -241,6 +178,7 @@ void setup() {
     delay(3000);
   }
   if (WiFi.status() == WL_CONNECTED) {
+    Serial.print("Count was: "); Serial.println(String(iCount));
     Serial.println("Connected to WiFi");
     Serial.print("IP Address: ");
     Serial.println(WiFi.localIP());
@@ -255,31 +193,55 @@ void setup() {
 
 // ouput page
 void webOutput() {
-    WiFiClient client = server.available();
-    if (client) {
-      String html = "<!DOCTYPE html><html><head><meta charset='utf-8'><title>Peppering Monitor</title></head><body>";
-      html += "<h2>Soil Moisture Readings (last 10 hours)</h2>";
-      html += formatDualReadings(readings1, readings2, timestamps);
-      html += "</body></html>";
+  char sRequest[MAXLINE] = {0};
+  int iMaxLine = MAXLINE;
 
-      client.println("HTTP/1.1 200 OK");
-      client.println("Content-Type: text/html");
-      client.println("Connection: close");
-      client.println();
-      client.println(html);
+  /*WiFiClient*/ client = server.available();  
+  if (client) {
+    // ✅ Step 1: Read the HTTP request line
+    client.readBytesUntil('\r', sRequest, sizeof(sRequest) - 1);
+    client.read();  // Consume the '\n'
 
-      delay(10);
-      client.stop();
+    // ✅ Step 2: Parse ?interval=value from the request
+    char* paramPtr = strstr(sRequest, "interval=");
+    if (paramPtr != NULL) {
+      paramPtr += 9;    // sizeof "interval="
+      int intervalValue = atoi(paramPtr);
+
+      if (intervalValue >= 10000 && intervalValue <= 43200000) {  // Safety bounds: 10s to 12h
+        sampleInterval = intervalValue;
+      }
     }
+
+    // ✅ Step 3: Respond with updated HTML page
+    client.println("HTTP/1.1 200 OK");
+    client.println("Content-Type: text/html");
+    client.println("Connection: close");
+    client.println();
+
+    client.println("<!DOCTYPE html><html><head><meta charset='utf-8'><title>Peppering Monitor</title></head><body>");
+    client.println("<h2>Soil Moisture Readings</h2>");
+    
+    client.println("<form action='/' method='GET'><p> New Interval (ms): <input type='number' name='interval' value='3600000'><br> <input type='submit' value='Set'></p></form>");
+
+    OuputTable(readings1, readings2, timestamps);
+
+    client.println("</body></html>");
+    
+    client.flush();
+    delay(100);
+    client.stop();
+  }
  
 }
+
 
 void loop() {
   unsigned long now = millis();
   int iAlert;
 
-  if (iAlert  != iAlert1 + iAlert2 ) {      // output matrix
-    iAlert = iAlert1 + iAlert2;
+  if (iAlert  != !dgValue1 + !dgValue2 ) {      // output matrix
+    iAlert = !dgValue1 + !dgValue2;
     ShowIconById(static_cast<IconId>(iAlert));
   }
  
@@ -303,11 +265,12 @@ void loop() {
     digitalWrite(sensor2PwrPin, LOW);
  
     // Debug outputt to the terminal
-    Serial.print("Sensor1: "); Serial.print(readings1[MAX_READINGS - 1]);
-    Serial.print(" | Sensor2: "); Serial.println(readings2[MAX_READINGS - 1]);
+    printMoistSensor(timestamps[MAX_READINGS - 1], readings1[MAX_READINGS - 1], dgValue1);
+    printMoistSensor(timestamps[MAX_READINGS - 1], readings2[MAX_READINGS - 1], dgValue2);
   }
 
   if (WiFi.status() == WL_CONNECTED) {
+    
     webOutput();
   }
   else {      // No WiFi
