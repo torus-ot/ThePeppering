@@ -14,7 +14,6 @@
 #include "secret_wifi.h"
 #include "uno_matrix.h"
 
-
 // WiFi credentials
 const char* ssid = SECRET_WIFI;
 const char* password = SECRET_PSWD;

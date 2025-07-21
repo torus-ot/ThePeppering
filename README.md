@@ -12,7 +12,7 @@
 ## THE HARDWARE:
   * Arduino UNO R4 WiFI  - https://www.amazon.com/dp/B0C8V88Z9D  
   * HiLetgo Soil Moisture Detect Sensors - https://www.amazon.com/dp/B01DKISKLO  
-  (no referal in amazon's links - I don't need no #jeffbezos money :grin:.  
+  (no referal in amazon's links - I don't need no #jeffbezos money :grin:)  
 
 ## KNOWN PROBLEMS
   1. For some reasons my WiFi router refuses to give my Arduino the dynamic IP address.  
