@@ -11,8 +11,15 @@
 #include <WiFiS3.h>
 #endif
 
-#include "secret_wifi.h"
 #include "uno_matrix.h"
+
+#include "secret_wifi.h"
+//
+// FIle "secret_wifi.h" should have these two lines:
+// #define SECRET_WIFI "Name_Of_Your_WiFi"
+// #define SECRET_PSWD "Password_For_Your_WiFI"
+// Place the file in your 'include' folder
+//
 
 // WiFi credentials
 const char* ssid = SECRET_WIFI;
@@ -90,11 +97,12 @@ void OuputTable(int arr1[], int arr2[], unsigned long tsArr[])
       client.println(sLine);
     }
     // bottom raw - digital
-    sAlert1 = (dgValue1 == 1) ? sOK : sBad;
-    sAlert2 = (dgValue2 == 1) ? sOK : sBad;
+    sAlert1 = (dgValue1 == 1) ? sBad : sOK;
+    sAlert2 = (dgValue2 == 1) ? sBad : sOK;
     snprintf(sLine, iMaxLine, "<tr align='right'><th>Alarm</th><td valign='top'>%s</td><td valign='top'>%s</td></tr>", sAlert1,sAlert2);
     client.println(sLine); 
     client.println("</table>\r\n</p>\r\n"); 
+    client.println("\r\n<p>Low Value is wet, Higher Value is dry. <\p>\r\n"); 
   }
 
 }
@@ -118,7 +126,7 @@ void printMoistSensor(unsigned long timestamp, int anValue, int dgValue) {
            "[%s] Moisture: analog=%d, digital=%s",
            sTime,
            anValue,
-           (dgValue == LOW ? "DRY" : "WET"));
+           (dgValue == LOW ? "WET" : "DRY"));
 
   Serial.println(buffer);
 }
@@ -245,8 +253,8 @@ void loop() {
   unsigned long now = millis();
   int iAlert;
 
-  if (iAlert  != !dgValue1 + !dgValue2 ) {      // output matrix
-    iAlert = !dgValue1 + !dgValue2;
+  if (iAlert  != dgValue1 + dgValue2 ) {      // output matrix
+    iAlert = dgValue1 + dgValue2;
     ShowIconById(static_cast<IconId>(iAlert));
   }
  
