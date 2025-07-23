@@ -49,8 +49,10 @@ ArduinoLEDMatrix matrix;
 int readings1[MAX_READINGS] = {0};
 int readings2[MAX_READINGS] = {0};
 unsigned long timestamps[MAX_READINGS] = {0};
-int dgValue1;
-int dgValue2;
+int dgValue1 = 0;
+int dgValue2 = 0;
+int iAlert;
+
 
 unsigned long lastSampleTime = 0;
 #ifndef DEBUG_NOWIFI 
@@ -164,6 +166,8 @@ int initMoistSensor(int pwrPin, int anlPin, int dgPin) {
 void setup() {
   Serial.begin(9600);           // connect to terminal
 
+  iAlert = 999;
+
   matrix.begin();               // init matrix on the board
 
   IPAddress local_ip(192, 168, 1, 193);    // your desired static IP
@@ -251,10 +255,11 @@ void webOutput() {
 
 void loop() {
   unsigned long now = millis();
-  int iAlert;
+  int iNewAlert;
 
-  if (iAlert  != dgValue1 + dgValue2 ) {      // output matrix
-    iAlert = dgValue1 + dgValue2;
+  iNewAlert = dgValue1 + 2*dgValue2;
+  if (iAlert  != iNewAlert ) {      // output matrix
+    iAlert = iNewAlert;
     ShowIconById(static_cast<IconId>(iAlert));
   }
  
