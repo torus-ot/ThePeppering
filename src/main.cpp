@@ -230,7 +230,9 @@ void webOutput() {
     client.println("Connection: close");
     client.println();
 
-    client.println("<!DOCTYPE html><html><head><meta charset='utf-8'><title>Peppering Monitor</title></head><body>");
+    client.println("<!DOCTYPE html><html><head><meta charset='utf-8'>");
+    client.println("<meta http-equiv='refresh' content='1800'>");       // refreshh in 30 min
+    client.println("<title>Peppering Monitor</title></head><body>");
     client.println("<h2>Soil Moisture Readings</h2>");
     
     // Form for the form HTML part
