@@ -104,7 +104,7 @@ void OuputTable(int arr1[], int arr2[], unsigned long tsArr[])
     snprintf(sLine, iMaxLine, "<tr align='right'><th>Alarm</th><td valign='top'>%s</td><td valign='top'>%s</td></tr>", sAlert1,sAlert2);
     client.println(sLine); 
     client.println("</table>\r\n</p>\r\n"); 
-    client.println("\r\n<p>Low Value is wet, Higher Value is dry. <\p>\r\n"); 
+    client.println("\r\n<p style='clear:both'>Low Value is wet, Higher Value is dry. <\p>\r\n"); 
   }
 
 }
