@@ -109,6 +109,17 @@ void OuputTable(int arr1[], int arr2[], unsigned long tsArr[])
 
 }
 
+void OutputTime() {
+  // ouput local time - best if added just before </body> tag
+  if (client) {
+    client.println("<div>Page was refreshed on: <span id='clock'></span></div>");
+    client.println("<script>const tD = document.getElementById('clock');");
+    client.println("function updateTime() {const now = new Date(); const fT = now.toLocaleTimeString(); tD.textContent = fT;}");
+    client.println("updateTime(); </script>");
+    client.println("\r\n");
+  }
+}
+
 
 void shiftReadingsUp() {
   for (int i = 0; i < MAX_READINGS - 1; i++) {
@@ -243,7 +254,8 @@ void webOutput() {
         sampleInterval);
     client.println(sRequest);
 
-    OuputTable(readings1, readings2, timestamps);
+    OuputTable(readings1, readings2, timestamps);           // HTML print data table
+    OutputTime();                                           // HTML print refresh time
 
     client.println("</body></html>");
     
