@@ -249,7 +249,7 @@ void webOutput() {
     // Form for the form HTML part
     snprintf(sRequest, sizeof(sRequest),
         "<form action='/' method='GET'><p> New Interval (ms): "
-        "<input type='number' name='interval' value='%lu'><br> "
+        "<input type='number' name='interval' size='10' value='%lu'> "
         "<input type='submit' value='Set'></p></form>",
         sampleInterval);
     client.println(sRequest);
