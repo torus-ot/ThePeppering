@@ -9,6 +9,28 @@ const uint32_t EXCLAMATION_LEFT[] = {0x30030030, 0x3003000, 0x300300};
 const uint32_t EXCLAMATION_RIGHT[] = {0xc00c00, 0xc00c00c0, 0xc00c};
 const uint32_t EXCLAMATION_BOTH[] = {0x30c30c30, 0xc30c30c0, 0x30c30c};
 
+// Legend for per sensor 2x4 blocks (Columns from left to right: S1, S2, S3, S4)
+constexpr uint32_t M_0_0_0_0[] = { 0x00000000, 0x00F000F0, 0x00F000F0 };
+constexpr uint32_t M_0_0_0_1[] = { 0x00000000, 0x00F000F0, 0x10F010F0 };
+constexpr uint32_t M_0_0_1_0[] = { 0x00000000, 0x00F010F0, 0x00F000F0 };
+constexpr uint32_t M_0_0_1_1[] = { 0x00000000, 0x00F010F0, 0x10F010F0 };
+
+constexpr uint32_t M_0_1_0_0[] = { 0x00000000, 0x10F000F0, 0x00F000F0 };
+constexpr uint32_t M_0_1_0_1[] = { 0x00000000, 0x10F000F0, 0x10F010F0 };
+constexpr uint32_t M_0_1_1_0[] = { 0x00000000, 0x10F010F0, 0x00F000F0 };
+constexpr uint32_t M_0_1_1_1[] = { 0x00000000, 0x10F010F0, 0x10F010F0 };
+
+constexpr uint32_t M_1_0_0_0[] = { 0x00000000, 0x00F000F0, 0x00F100F1 };
+constexpr uint32_t M_1_0_0_1[] = { 0x00000000, 0x00F000F0, 0x10F110F1 };
+constexpr uint32_t M_1_0_1_0[] = { 0x00000000, 0x00F010F0, 0x00F100F1 };
+constexpr uint32_t M_1_0_1_1[] = { 0x00000000, 0x00F010F0, 0x10F110F1 };
+
+constexpr uint32_t M_1_1_0_0[] = { 0x00000000, 0x10F000F0, 0x00F100F1 };
+constexpr uint32_t M_1_1_0_1[] = { 0x00000000, 0x10F000F0, 0x10F110F1 };
+constexpr uint32_t M_1_1_1_0[] = { 0x00000000, 0x10F010F0, 0x00F100F1 };
+constexpr uint32_t M_1_1_1_1[] = { 0x00000000, 0x10F010F0, 0x10F110F1 };
+
+
 void ShowIconById(IconId iconId) {
  
   switch (iconId) {
