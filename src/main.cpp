@@ -11,8 +11,8 @@
 #include <WiFiS3.h>
 #endif
 
+#include "sensors.h"
 #include "uno_matrix.h"
-
 #include "secret_wifi.h"
 //
 // FIle "secret_wifi.h" should have these two lines:
@@ -33,22 +33,34 @@ WiFiClient client;
 #endif
 
 // Sensor 1 configuration
-const int sensor1PwrPin = 7;
-const int sensor1AnlPin = A0;
-const int sensor1DgtPin = 2;
+// const int sensor1PwrPin = 7;
+// const int sensor1AnlPin = A0;
+// const int sensor1DgtPin = 2;
 
 // Sensor 2 configuration
-const int sensor2PwrPin = 8;
-const int sensor2AnlPin = A1;
-const int sensor2DgtPin = 3;
+// const int sensor2PwrPin = 8;
+// const int sensor2AnlPin = A1;
+// const int sensor2DgtPin = 3;
 
-const int MAX_READINGS = 10;
+//extern const int MAX_READINGS;
 
+// arrays vor reading
+/*extern int sensorReadings[MAX_SENSORS][MAX_READINGS];     // Analog values
+extern int sensorDigital[MAX_SENSORS];                    // Latest digital states
+extern unsigned long aTimestamps[MAX_READINGS]; */     
+
+MoistureSensor sensors[] = {
+  {7, A0, 2, 0, "Pot A"},           // Resistive sensor, alarmValue is ignored
+  {8, A1, A1, 500, "Pot B"},        // Capacitive sensor - immitating digital pin with alarm value
+  // {9, A2, A2, 400, "Test"}, 
+  // Add more...
+};
+const int iNumSensors = sizeof(sensors) / sizeof(sensors[0]);
 
 ArduinoLEDMatrix matrix; 
-int readings1[MAX_READINGS] = {0};
-int readings2[MAX_READINGS] = {0};
-unsigned long timestamps[MAX_READINGS] = {0};
+//int readings1[MAX_READINGS] = {0};
+// int readings2[MAX_READINGS] = {0};
+// unsigned long timestamps[MAX_READINGS] = {0};
 int dgValue1 = 0;
 int dgValue2 = 0;
 int iAlert;
@@ -56,9 +68,9 @@ int iAlert;
 
 unsigned long lastSampleTime = 0;
 #ifndef DEBUG_NOWIFI 
-unsigned long sampleInterval = 60000;    // 5min //3600000; // 1 hour in milliseconds
+unsigned long sampleInterval = 60000;    // 1min //3600000; // 1 hour in milliseconds
 #else
-const unsigned long sampleInterval = 10000; // 10 sec. in milliseconds
+const unsigned long sampleInterval = 300000; // 15 min. in milliseconds
 #endif
 
 
@@ -73,7 +85,7 @@ char* TimestampOut(char* sTime, int iMaxL, unsigned long ms) {
 }
 
 
-char* formatRaw(char* buf, size_t maxLen, int iVal1, int iVal2, unsigned long ms) {
+char* formatRow(char* buf, size_t maxLen, int iVal1, int iVal2, unsigned long ms) {
   char sTime[20];
   TimestampOut(sTime, sizeof(sTime), ms);
   snprintf(buf, maxLen, "<tr align='right'><td>%s</td><td>%d</td><td>%d</td></tr>", sTime, iVal1, iVal2);
@@ -81,9 +93,29 @@ char* formatRaw(char* buf, size_t maxLen, int iVal1, int iVal2, unsigned long ms
 }
 
 
+char* formatRowEx(char* buf, size_t maxLen, int iIndx, unsigned long ms) 
+{ // build row for sensors
+  #define MAX_CELL 20
+  char sCell[MAX_CELL];
+  char sTime[MAX_CELL];
+  String  sRow = "<tr align='right'>";
+  TimestampOut(sTime, sizeof(sTime), ms);
+  snprintf(sCell, MAX_CELL-1, "<td>%s</td>", sTime);
+  sRow += sCell;
+  for (int n = 0; n < MAX_SENSORS; n++) {   // add sensors reading into cells
+    snprintf(sCell, MAX_CELL-1, "<td>%d</td>", sensorReadings[n][iIndx]);
+    sRow += sCell;
+  }
+  sRow += "</tr>";        // close the table row
+  sRow.toCharArray(buf, maxLen);
+  buf[maxLen-1] = '\0';     // safety null termination
+  return buf;
+}
+
+
 void OuputTable(int arr1[], int arr2[], unsigned long tsArr[]) 
 {
-  char* sAlert1;
+  /*char* sAlert1;
   char* sAlert2;
   char* sOK =  "&#128994;";     // "OK";    //
   char* sBad = "&#10060;";      // "!!!";   // 
@@ -95,7 +127,7 @@ void OuputTable(int arr1[], int arr2[], unsigned long tsArr[])
     client.println("<p><table border='1' align='left'>");                                    // table
     client.println("<tr><th>Time elapsed</th><th>Sensor 1</th><th>Sensor 2</th></tr>");   // header
     for (int i = 0; i < MAX_READINGS; i++) {                                              // raws
-      formatRaw(sLine, iMaxLine, arr1[i], arr2[i], tsArr[i]);
+      formatRow(sLine, iMaxLine, arr1[i], arr2[i], tsArr[i]);
       client.println(sLine);
     }
     // bottom raw - digital
@@ -106,8 +138,65 @@ void OuputTable(int arr1[], int arr2[], unsigned long tsArr[])
     client.println("</table>\r\n</p>\r\n"); 
     client.println("\r\n<p style='clear:both'>Low Value is wet, Higher Value is dry. <\p>\r\n"); 
   }
+*/
+}
+
+
+void TableHeader() 
+{ // output table header
+  char buf[64];
+  if (client) {
+    client.print("<tr><th>Time elapsed</th>");
+    for (int i = 0; i < MAX_SENSORS; i++) {
+        snprintf(buf, sizeof(buf), "<th>%s</th>", sensors[i].name);
+        client.print(buf);
+    }
+    client.println("</tr>");
+  }
+}
+
+
+void digitalRow() 
+{ // Output Alarms row 
+  char* sAlert;
+  char* sOK =  "&#128994;";     // "OK";    //
+  char* sBad = "&#10060;";      // "!!!";   // 
+  char buf[64];
+ 
+    if (client) {
+    client.print("<tr align='right'><th>Alarm</th>");
+    for (int i = 0; i < MAX_SENSORS; i++) {
+      sAlert = (sensorDigital[i] == 1) ? sBad : sOK;
+      snprintf(buf, sizeof(buf), "<th>%s</th>", sAlert);
+      client.print(buf);
+    }
+    client.println("</tr>");
+  }
 
 }
+
+
+void OuputTableEx() 
+{
+  char sLine[MAXLINE];
+  int iMaxLine = MAXLINE;
+
+  // WiFiClient client = server.available();   // called in the WebOutput()
+  if (client) {                                                 // Output:
+    client.println("<p><table border='1' align='left'>");       // table
+    TableHeader();                                              // table header
+    for (int i = 0; i < MAX_READINGS; i++) {                    // raws
+      formatRowEx(sLine, iMaxLine, i, aTimestamps[i]);
+      client.println(sLine);
+    }
+    // bottom raw - digital
+    digitalRow();
+    client.println("</table>\r\n</p>\r\n"); 
+    client.println("\r\n<p style='clear:both'>Low Value is wet, Higher Value is dry. <\p>\r\n"); 
+  }
+
+}
+
 
 void OutputTime() {
   // ouput local time - best if added just before </body> tag
@@ -122,11 +211,31 @@ void OutputTime() {
 
 
 void shiftReadingsUp() {
-  for (int i = 0; i < MAX_READINGS - 1; i++) {
+  /*for (int i = 0; i < MAX_READINGS - 1; i++) {
     readings1[i] = readings1[i + 1];
     readings2[i] = readings2[i + 1];
     timestamps[i] = timestamps[i + 1];
+  }*/
+}
+
+
+void shiftReadingsUpEx(unsigned long ms) {
+  // first - shift all values up one line
+  for (int i = 0; i < MAX_READINGS - 1; i++) {
+    for (int n = 0; n < MAX_SENSORS; n++) {
+      sensorReadings[n][i] = sensorReadings[n][i + 1];
+    }
+    // sensorDigital[i] = sensorDigital[i + 1];
+    aTimestamps[i] = aTimestamps[i + 1];
   }
+  // second - read all values into the last line
+  for (int n = 0; n < MAX_SENSORS; n++) {
+      int aPin = sensors[n].analogPin;
+      int dPin = sensors[n].digitalPin;
+      sensorReadings[n][MAX_READINGS - 1] = analogRead(sensors[n].analogPin);                                 // read analog
+      sensorDigital[n] = digitalReadEx(sensors[n].digitalPin, sensors[n].analogPin, sensors[n].alarmValue);   // read digital
+  }
+  aTimestamps[MAX_READINGS-1] = ms;                                                                           // save timestamp
 }
 
 
@@ -145,8 +254,22 @@ void printMoistSensor(unsigned long timestamp, int anValue, int dgValue) {
 }
 
 
+void printMoistSensorEx(int nSensor, int indx) {
+  char buffer[MAXLINE];
+  char sTime[20];
+  int dgValue = sensorDigital[nSensor];
+  TimestampOut(sTime, sizeof(sTime), aTimestamps[indx]);
+
+  snprintf(buffer, sizeof(buffer),
+           "Sensor %s: [%s] Moisture: analog=%d, digital=%s", sensors[nSensor].name, 
+           sTime, sensorReadings[nSensor][indx], (dgValue == LOW ? "WET" : "DRY"));
+
+  Serial.println(buffer);
+}
+
+
 int initMoistSensor(int pwrPin, int anlPin, int dgPin) {
-  pinMode(pwrPin, OUTPUT);
+  /*pinMode(pwrPin, OUTPUT);
   pinMode(anlPin, INPUT);
   pinMode(dgPin, INPUT);
 
@@ -171,7 +294,45 @@ int initMoistSensor(int pwrPin, int anlPin, int dgPin) {
              anlPin - A0, analogVal);
     Serial.println(buffer);
     return 0;
+  }*/
+}
+
+
+int initMoistSensorEx() 
+{
+  int pwrPin, anlPin, dgPin;
+  char buffer[100];
+  int retCode = 0;
+  for (int i = 0; i < MAX_SENSORS; i++) {
+    pwrPin = sensors[i].powerPin;
+    anlPin = sensors[i].analogPin;
+    dgPin = sensors[i].digitalPin;
+    pinMode(pwrPin, OUTPUT);
+    pinMode(anlPin, INPUT);
+    pinMode(dgPin, INPUT);
+    digitalWrite(pwrPin, HIGH);         // power on       
+    delay(200);                         // allow sensor to stabilize// power on
+    // try to read sensor
+    int analogVal = analogRead(anlPin);
+    int digitalVal = digitalReadEx(dgPin, anlPin, sensors[i].alarmValue);
+    // check for stupid
+    if ( analogVal > 10 && analogVal < 1013 ) {
+      snprintf(buffer, sizeof(buffer), "✅ Sensor %s (%d, %d, %d) is on: %d", 
+              sensors[i].name, pwrPin, anlPin - A0, digitalVal, analogVal);
+      Serial.println(buffer);
+      retCode += 1;
+    } else {
+      snprintf(buffer, sizeof(buffer), "⚠️ Sensor %s (%d, %d, %d) has failed: %d", 
+              sensors[i].name, pwrPin, anlPin - A0, digitalVal, analogVal);
+      Serial.println(buffer);
+    }
   }
+  if (retCode < MAX_SENSORS) {
+    return 0;
+  } else {
+    return 1;
+  } 
+
 }
 
 void setup() {
@@ -186,9 +347,10 @@ void setup() {
   IPAddress subnet(255, 255, 255, 0);      // standard home subnet
   WiFi.config(local_ip, gateway, subnet);
 
-  // init both misture sensors
-  int ok1 = initMoistSensor(sensor1PwrPin, sensor1AnlPin, sensor1DgtPin);
-  int ok2 = initMoistSensor(sensor2PwrPin, sensor2AnlPin, sensor2DgtPin);
+  // init all moisture sensors
+  //int ok1 = initMoistSensor(sensor1PwrPin, sensor1AnlPin, sensor1DgtPin);
+  //int ok2 = initMoistSensor(sensor2PwrPin, sensor2AnlPin, sensor2DgtPin);
+  int ok = initMoistSensorEx();
 
 
   // Try to connect - 10 times 
@@ -197,8 +359,9 @@ void setup() {
    while (WiFi.begin(ssid, password) != WL_CONNECTED && iCount < 10 ) {
     Serial.println("Connecting to WiFi...");
     iCount++;
-    delay(3000);
+    delay(500);
   }
+  delay(1000);          // if we want DHCP give as IP address
   if (WiFi.status() == WL_CONNECTED) {
     Serial.print("Count was: "); Serial.println(String(iCount));
     Serial.println("Connected to WiFi");
@@ -254,8 +417,10 @@ void webOutput() {
         sampleInterval);
     client.println(sRequest);
 
-    OuputTable(readings1, readings2, timestamps);           // HTML print data table
-    OutputTime();                                           // HTML print refresh time
+    // OuputTable(readings1, readings2, timestamps);           // HTML print data table
+    // OuputTable(sensorReadings[0], sensorReadings[1], aTimestamps);
+    OuputTableEx();                                         // print new table
+    OutputTime();                                           // HTML print the table
 
     client.println("</body></html>");
     
@@ -271,34 +436,57 @@ void loop() {
   unsigned long now = millis();
   int iNewAlert;
 
+  // Do this for now
+  dgValue1 = sensorDigital[0];   
+  dgValue2 = sensorDigital[1];
+
   iNewAlert = dgValue1 + 2*dgValue2;
   if (iAlert  != iNewAlert ) {      // output matrix
     iAlert = iNewAlert;
     ShowIconById(static_cast<IconId>(iAlert));
+    // debug 
+    Serial.print("iAlert=");
+    Serial.println(iAlert); Serial.println(dgValue1); Serial.println(dgValue2);
+    Serial.println("\r\n");
   }
  
   if (now - lastSampleTime >= sampleInterval || lastSampleTime == 0) {
     lastSampleTime = now;
 
     // powering sensors up
-    digitalWrite(sensor1PwrPin, HIGH);
-    digitalWrite(sensor2PwrPin, HIGH);
-    delay(200);       // allow sensors to stabilize before reading
+    //digitalWrite(sensor1PwrPin, HIGH);
+    // digitalWrite(sensor2PwrPin, HIGH);
+    // delay(200);       // allow sensors to stabilize before reading
  
-    shiftReadingsUp();
-    readings1[MAX_READINGS - 1] = analogRead(sensor1AnlPin);
-    readings2[MAX_READINGS - 1] = analogRead(sensor2AnlPin);
-    timestamps[MAX_READINGS - 1] = now;
-    dgValue1 = digitalRead(sensor1DgtPin);
-    dgValue2 = digitalRead(sensor2DgtPin);
+    for (int i = 0; i < MAX_SENSORS; i++) {       // power up all sensors
+      digitalWrite(sensors[i].powerPin, HIGH); 
+    }
+    delay(200); 
 
+    shiftReadingsUp();
+    // readings1[MAX_READINGS - 1] = analogRead(sensor1AnlPin);
+    // readings2[MAX_READINGS - 1] = analogRead(sensor2AnlPin);
+    // timestamps[MAX_READINGS - 1] = now;
+    // old digital read
+    // dgValue1 = digitalRead(sensor1DgtPin);
+    // dgValue2 = digitalRead(sensor2DgtPin);
+    // dgValue2 = (dgValue2>750) ? HIGH : LOW ;
+   
+    // new new analog and digital read
+    shiftReadingsUpEx(now);           // shift values up, read new values and save them to the last row
+
+    for (int n = 0; n < MAX_SENSORS; n++) {
+      digitalWrite(sensors[n].powerPin, LOW);                                                               // power off the sensor
+      printMoistSensorEx(n, MAX_READINGS-1);                                                                // output to terminal                                                
+    }
+ 
     // powering sensors off
-    digitalWrite(sensor1PwrPin, LOW);
-    digitalWrite(sensor2PwrPin, LOW);
+    //digitalWrite(sensor1PwrPin, LOW);
+    // digitalWrite(sensor2PwrPin, LOW);
  
     // Debug outputt to the terminal
-    printMoistSensor(timestamps[MAX_READINGS - 1], readings1[MAX_READINGS - 1], dgValue1);
-    printMoistSensor(timestamps[MAX_READINGS - 1], readings2[MAX_READINGS - 1], dgValue2);
+    //printMoistSensor(timestamps[MAX_READINGS - 1], readings1[MAX_READINGS - 1], dgValue1);
+    //printMoistSensor(timestamps[MAX_READINGS - 1], readings2[MAX_READINGS - 1], dgValue2);
   }
 
   if (WiFi.status() == WL_CONNECTED) {
@@ -306,9 +494,9 @@ void loop() {
     webOutput();
   }
   else {      // No WiFi
-    printMoistSensor(timestamps[MAX_READINGS - 1], readings1[MAX_READINGS - 1], dgValue1);
-    printMoistSensor(timestamps[MAX_READINGS - 1], readings2[MAX_READINGS - 1], dgValue2);
-
+    for (int i = 0; i < MAX_SENSORS; i++) {
+      printMoistSensorEx(i, MAX_READINGS-1); 
+    }
   }
   
   delay(100); // brief pause to avoid tight loop
