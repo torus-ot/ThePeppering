@@ -30,6 +30,7 @@ const uint32_t m_peppering[][3] = {
     {0x24824, 0x82482496, 0xdb000fff}, //   M_1_1_1_0
     {0x24924, 0x92492496, 0xdb000fff}  //   M_1_1_1_1
 };
+const uint32_t testicon[] = {0x04804, 0x80482496, 0xdb000fff};
 
 void ShowIconById(IconId iconId) {
  
@@ -79,3 +80,22 @@ int getSensorPatternIndex(const int* dgValues, int count) {
   }
   return index;  // Value from 0 to 15
 }
+
+int ShowIcon4Sensors(const int* dgValues, int count, uint32_t uIcon[3])
+{
+  int iNewAlert = getSensorPatternIndex(dgValues, count);       // get the index
+    // Serial.print("iNewAlert=");
+    // Serial.println(iNewAlert); // Serial.println(dgValue1); Serial.println(dgValue2);
+    // Serial.println("\r\n");
+ 
+    // matrix.loadFrame(LEDMATRIX_EMOJI_HAPPY);
+  if (iNewAlert >= 0 && iNewAlert < 16) {
+    for (int i = 0; i < 3; i++ ) {
+      uIcon[i] = m_peppering[iNewAlert][i];
+    }
+    return iNewAlert;
+  } 
+  return -1;
+  
+}
+

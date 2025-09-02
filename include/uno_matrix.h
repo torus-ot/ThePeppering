@@ -13,4 +13,5 @@ enum IconId {
 void ShowIconById(IconId iconId);
 void printIcon12x8(const uint32_t icon[]);
 int getSensorPatternIndex(const int* dgValues, int count);
+int ShowIcon4Sensors(const int* dgValues, int count, uint32_t uIcon[3]);
  #endif
