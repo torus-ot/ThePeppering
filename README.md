@@ -1,5 +1,13 @@
 # First stage of The Peppering project is completed.
+  -
 ## THE CODE
+  ### Major code upgrade, clenup (August 2025)
+    1. Array of sensors is is implemented
+    2. Support of both tipe of sensors: Capacitive Resistive
+    3. Matrix show is upgraded to  show alarm for 4 sensors.
+    4. Function *Ex are completly replaced old function (with renaming)
+    5. web page is show refreshing time
+
   ### What the code (and Arduino) can do now:  
     1. Read two Soil Moisture Sensors with provided time interval   
     2. Output the table of last 10 analog reads from sensors to the web page.  
