@@ -4,7 +4,7 @@
 #include <Arduino.h>
 
 const int MAX_READINGS = 10;
-const int MAX_SENSORS = 2;     // up to 10 realistically 
+const int MAX_SENSORS = 6;     // up to 4 realistically 
 //const char cRes =  'R';
 //const char cCap = 'C';
 
@@ -23,7 +23,7 @@ unsigned long aTimestamps[MAX_READINGS] = {0};           // array of Timestamp s
 
 
 // Try it inline
-inline int digitalReadEx(int dgPin, int anPin, int alarmValue) {
+inline int digitalRead(int dgPin, int anPin, int alarmValue) {
      if ( dgPin == anPin ) {         // dgPin is not real! imitate reading
         return (analogRead(anPin) > alarmValue) ? HIGH : LOW;
     } else {
